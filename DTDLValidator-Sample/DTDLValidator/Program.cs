@@ -30,14 +30,13 @@
             public bool Interactive { get; set; }
         }
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            CommandLine.Parser.Default.ParseArguments<Options>(args)
-              .WithParsed(RunOptions)
-              .WithNotParsed(HandleParseError);
+            return CommandLine.Parser.Default.ParseArguments<Options>(args)
+              .MapResult<Options, int>(RunOptions, HandleParseError);
         }
 
-        static void RunOptions(Options opts)
+        static int RunOptions(Options opts)
         {
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
             string dtdlParserVersion = "<unknown>";
@@ -53,7 +52,7 @@
             {
                 Log.Alert("Entering interactive mode");
                 Interactive.Interactive i = new Interactive.Interactive();
-                return;
+                return 0;
             } 
 
             DirectoryInfo dinfo = null;
@@ -63,14 +62,14 @@
             } catch (Exception e)
             {
                 Log.Error($"Error accessing the target directory '{opts.Directory}': \n{e.Message}");
-                return;
+                return 1;
             }
 
             Log.Alert($"Validating *.{opts.Extension} files in folder '{dinfo.FullName}'.\nRecursive is set to {opts.Recursive}\n");
             if (dinfo.Exists == false)
             {
                 Log.Error($"Specified directory '{opts.Directory}' does not exist: Exiting...");
-                return;
+                return 1;
             }
             else
             {
@@ -79,7 +78,7 @@
                 if (files.Count() == 0)
                 {
                     Log.Alert("No matching files found. Exiting.");
-                    return;
+                    return 1;
                 }
 
                 Dictionary<FileInfo, string> modelDict = new Dictionary<FileInfo, string>();
@@ -99,7 +98,7 @@
                 } catch (Exception e)
                 {
                     Log.Error($"Could not read files. \nLast file read: {lastFile}\nError: \n{e.Message}");
-                    return;
+                    return 1;
                 }
 
                 Log.Ok($"Read {count} files from specified directory");
@@ -120,7 +119,7 @@
                 if (errJson>0)
                 {
                     Log.Error($"\nFound  {errJson} Json parsing errors");
-                    return;
+                    return 1;
                 }
 
                 Log.Ok($"Validated JSON for all files - now validating DTDL");
@@ -135,6 +134,7 @@
                     Log.Ok($"** Validated all files - Your DTDL is valid **");
                     Log.Ok($"**********************************************");
                     Log.Out($"Found a total of {om.Keys.Count()} entities");
+                    return 0;
                 }
                 catch (ParsingException pe)
                 {
@@ -150,11 +150,12 @@
                         derrcount++;
                     }
 
-                    return;
+                    return 1;
                 }
                 catch (ResolutionException)
                 {
                     Log.Error("Could not resolve required references");
+                    return 1;
                 }
             } 
         }
@@ -170,13 +171,14 @@
             return null;
         }
 
-        static void HandleParseError(IEnumerable<Error> errs)
+        static int HandleParseError(IEnumerable<Error> errs)
         {
             Log.Error($"Invalid command line.");
             foreach (Error e in errs)
             {
                 Log.Error($"{e.Tag}: {e}");
-            }            
+            }      
+            return 1;      
         }
     }
 }
